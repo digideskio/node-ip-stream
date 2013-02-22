@@ -1,4 +1,4 @@
-# ether-stream
+# ip-stream
 
 Object stream transform that parses IP headers.
 
