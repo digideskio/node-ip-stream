@@ -25,9 +25,80 @@
 
 var IpStream = require('../stream');
 
-module.exports.nop = function(test) {
+var IpHeader = require('ip-header');
+
+module.exports.writeBuffer = function(test) {
+  test.expect(2);
+
+  var iph = new IpHeader({
+    src: '1.1.1.1',
+    dst: '2.2.2.2',
+    protocol: 'udp',
+    dataLength: 58
+  });
+
+  var ipstream = new IpStream();
+  ipstream.on('readable', function() {
+    var msg = ipstream.read();
+    test.deepEqual(iph, msg.ip);
+    test.ok(msg.data instanceof Buffer);
+  });
+  ipstream.on('end', function() {
+    test.done();
+  });
+  ipstream.read(0);
+
+  ipstream.write(iph.toBuffer());
+  ipstream.end();
+};
+
+module.exports.writeObject = function(test) {
+  test.expect(2);
+
+  var iph = new IpHeader({
+    src: '1.1.1.1',
+    dst: '2.2.2.2',
+    protocol: 'udp',
+    dataLength: 58
+  });
+
+  var ipstream = new IpStream();
+  ipstream.on('readable', function() {
+    var msg = ipstream.read();
+    test.deepEqual(iph, msg.ip);
+    test.ok(msg.data instanceof Buffer);
+  });
+  ipstream.on('end', function() {
+    test.done();
+  });
+  ipstream.read(0);
+
+  ipstream.write({ data: iph.toBuffer(), offset: 0, ether: { type: 'ip' } });
+  ipstream.end();
+};
+
+module.exports.writeIgnore = function(test) {
   test.expect(1);
-  var istream = new IpStream();
-  test.ok(istream instanceof IpStream);
-  test.done();
+
+  var value = {
+    data: new Buffer(50),
+    offset: 0,
+    ether: { type: 'arp' }
+  };
+
+  var ipstream = new IpStream();
+  ipstream.on('ignored', function(msg) {
+    test.deepEqual(value, msg);
+  });
+  ipstream.on('readable', function() {
+    var msg = ipstream.read();
+    test.ok(!msg);
+  });
+  ipstream.on('end', function() {
+    test.done();
+  });
+  ipstream.read(0);
+
+  ipstream.write(value);
+  ipstream.end();
 };

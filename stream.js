@@ -67,7 +67,7 @@ IpStream.prototype._transform = function(origMsg, output, callback) {
   }
 
   try {
-    var iph = new IpHeader(data, offset);
+    var iph = new IpHeader(msg.data, msg.offset);
 
     // TODO: handle fragmentation
 
