@@ -52,27 +52,31 @@ function IpStream(opts) {
   return self;
 }
 
-IpStream.prototype._transform = function(msg, output, callback) {
-  var data = (msg instanceof Buffer) ? msg : msg.data;
-  var type = msg.ether ? msg.ether.type : 'ip';
+IpStream.prototype._transform = function(origMsg, output, callback) {
+  var msg = origMsg;
+  if (msg instanceof Buffer) {
+    msg = { data: msg, offset: 0 };
+  }
+  msg.offset = ~~msg.offset;
 
+  var type = (msg.ether && msg.ether.type) ? msg.ether.type : 'ip';
   if (type !== 'ip') {
-    this.emit('ignored', msg);
+    this.emit('ignored', origMsg);
     callback();
     return;
   }
 
   try {
-    var iph = new IpHeader(msg.data);
+    var iph = new IpHeader(data, offset);
 
     // TODO: handle fragmentation
 
     msg.ip = iph;
-    msg.data = msg.data.slice(iph.length);
+    msg.offset += iph.length;
     output(msg);
 
   } catch (error) {
-    this.emit('ignored', msg);
+    this.emit('ignored', origMsg);
   }
 
   callback();
