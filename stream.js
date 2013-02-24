@@ -49,7 +49,18 @@ function IpStream(opts) {
 
   Transform.call(self, opts);
 
+  self._fragmentsMode = opts.fragments || 'reassemble';
+  if (self._fragmentsMode !== 'reassemble' &&
+      self._fragmentsMode !== 'drop' &&
+      self._fragmentsMode !== 'pass') {
+    throw new Error('IpStream fragments option must be one of ' +
+                    '[reassemble, drop, pass]; value [' + opts.fragments +
+                    '] is invalid');
+  }
+
   self._fragments = {};
+  self._timers = {};
+  self._fragmentTimeout = opts.fragmentTimeout || (30 * 1000);
 
   return self;
 }
@@ -72,13 +83,22 @@ IpStream.prototype._transform = function(origMsg, output, callback) {
     msg.ip = new IpHeader(msg.data, msg.offset);
     msg.offset += msg.ip.length;
 
-    // TODO: handle fragmentation
     if (msg.ip.flags.mf || msg.ip.offset) {
-      msg = this._handleFragment(msg);
-      if (!msg) {
+      if (this._fragmentsMode === 'drop') {
+        this.emit('ignored', origMsg);
         callback();
         return;
       }
+
+      if (this._fragmentsMode === 'reassemble') {
+        msg = this._handleFragment(msg);
+        if (!msg) {
+          callback();
+          return;
+        }
+      }
+
+      // do nothing in case of 'pass' mode
     }
 
     output(msg);
@@ -93,11 +113,11 @@ IpStream.prototype._transform = function(origMsg, output, callback) {
 IpStream.prototype._handleFragment = function(msg) {
   var key = msg.ip.src + '-' + msg.ip.dst + '-' + msg.ip.id;
 
-  // TODO: cleanup stale fragments to avoid memory leaks
-
   var list = this._fragments[key];
   if (!list) {
     list = this._fragments[key] = [];
+    this._timers[key] = setTimeout(this._doTimeout.bind(this, key),
+                                   this._fragmentTimeout);
   }
 
   list.push(msg);
@@ -134,6 +154,23 @@ IpStream.prototype._handleFragment = function(msg) {
   msg.ip.offset = 0;
 
   delete this._fragments[key];
+  if (this._timers[key]) {
+    clearTimeout(this._timers[key]);
+    delete this._timers[key];
+  }
 
   return msg;
+};
+
+IpStream.prototype._doTimeout = function(key) {
+  var list = this._fragments[key];
+
+  delete this._fragments[key];
+  delete this._timers[key];
+
+  if (list) {
+    for (var i = 0, n = list.length; i < n; ++i) {
+      this.emit('ignored', list[i]);
+    }
+  }
 };

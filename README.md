@@ -35,4 +35,13 @@ ipstream.on('ignored', function(msg) {
 });
 
 ipstream.read(0);
+
+// you can also control how fragments are handled
+var ipsream2 = new IpStream({fragments: 'reassemble'}); // the default
+var ipsream3 = new IpStream({fragments: 'drop'});       // ignore fragments
+var ipsream4 = new IpStream({fragments: 'pass'});       // passthrough frags
+
+// When reassembling, unmatched fragments are timed-out after 30 seconds by
+// default, but you can configure that:
+var ipsream5 = new IpStream({fragmentTimeout: 5000});
 ```

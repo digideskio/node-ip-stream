@@ -28,7 +28,7 @@ var IpStream = require('../stream');
 var IpHeader = require('ip-header');
 
 module.exports.inOrder = function(test) {
-  doTest(test, function(ipstream, msgs) {
+  _doTest(test, function(ipstream, msgs) {
     ipstream.write(msgs[0]);
     ipstream.write(msgs[1]);
     ipstream.write(msgs[2]);
@@ -36,7 +36,7 @@ module.exports.inOrder = function(test) {
 };
 
 module.exports.reverseOrder = function(test) {
-  doTest(test, function(ipstream, msgs) {
+  _doTest(test, function(ipstream, msgs) {
     ipstream.write(msgs[2]);
     ipstream.write(msgs[1]);
     ipstream.write(msgs[0]);
@@ -44,14 +44,97 @@ module.exports.reverseOrder = function(test) {
 };
 
 module.exports.randomOrder = function(test) {
-  doTest(test, function(ipstream, msgs) {
+  _doTest(test, function(ipstream, msgs) {
     ipstream.write(msgs[2]);
     ipstream.write(msgs[0]);
     ipstream.write(msgs[1]);
   });
 };
 
-function doTest(test, callback) {
+module.exports.timeout = function(test) {
+  test.expect(2);
+
+  var buf = new Buffer(1200);
+  for (var i = 0, n = buf.length; i < n; ++i) {
+    buf.writeUInt8(i & 0xff, i);
+  }
+  var msgs = _makeFragments(buf);
+
+  var ipstream = new IpStream({fragmentTimeout: 100});
+
+  ipstream.on('ignored', function(msg) {
+    if (!msg.ip.offset) {
+      test.deepEqual(msgs[0], msg);
+    } else {
+      test.deepEqual(msgs[1], msg);
+      test.done();
+    }
+  });
+
+  ipstream.write(msgs[0]);
+  ipstream.write(msgs[1]);
+};
+
+module.exports.pass = function(test) {
+  test.expect(3);
+
+  var buf = new Buffer(1200);
+  for (var i = 0, n = buf.length; i < n; ++i) {
+    buf.writeUInt8(i & 0xff, i);
+  }
+  var msgs = _makeFragments(buf);
+
+  var ipstream = new IpStream({fragments: 'pass'});
+
+  var i = 0;
+  ipstream.on('readable', function() {
+    var msg = ipstream.read();
+    test.deepEqual(msgs[i], msg);
+    i += 1;
+  });
+
+  ipstream.on('end', function() {
+    test.done();
+  });
+
+  ipstream.read(0);
+
+  ipstream.write(msgs[0]);
+  ipstream.write(msgs[1]);
+  ipstream.write(msgs[2]);
+  ipstream.end();
+};
+
+module.exports.drop = function(test) {
+  test.expect(3);
+
+  var buf = new Buffer(1200);
+  for (var i = 0, n = buf.length; i < n; ++i) {
+    buf.writeUInt8(i & 0xff, i);
+  }
+  var msgs = _makeFragments(buf);
+
+  var ipstream = new IpStream({fragments: 'drop'});
+
+  var i = 0;
+  ipstream.on('ignored', function(msg) {
+    test.deepEqual(msgs[i], msg);
+    i += 1;
+  });
+
+  ipstream.on('end', function() {
+    test.done();
+  });
+
+  ipstream.read(0);
+
+  ipstream.write(msgs[0]);
+  ipstream.write(msgs[1]);
+  ipstream.write(msgs[2]);
+  ipstream.end();
+};
+
+function _doTest(test, callback) {
   test.expect(1202);
 
   var buf = new Buffer(1200);
