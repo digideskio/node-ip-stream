@@ -49,6 +49,8 @@ function IpStream(opts) {
 
   Transform.call(self, opts);
 
+  self._fragments = {};
+
   return self;
 }
 
@@ -67,12 +69,18 @@ IpStream.prototype._transform = function(origMsg, output, callback) {
   }
 
   try {
-    var iph = new IpHeader(msg.data, msg.offset);
+    msg.ip = new IpHeader(msg.data, msg.offset);
+    msg.offset += msg.ip.length;
 
     // TODO: handle fragmentation
+    if (msg.ip.flags.mf || msg.ip.offset) {
+      msg = this._handleFragment(msg);
+      if (!msg) {
+        callback();
+        return;
+      }
+    }
 
-    msg.ip = iph;
-    msg.offset += iph.length;
     output(msg);
 
   } catch (error) {
@@ -81,3 +89,51 @@ IpStream.prototype._transform = function(origMsg, output, callback) {
 
   callback();
 }
+
+IpStream.prototype._handleFragment = function(msg) {
+  var key = msg.ip.src + '-' + msg.ip.dst + '-' + msg.ip.id;
+
+  // TODO: cleanup stale fragments to avoid memory leaks
+
+  var list = this._fragments[key];
+  if (!list) {
+    list = this._fragments[key] = [];
+  }
+
+  list.push(msg);
+  list.sort(function(a, b) {
+    return a.ip.offset - b.ip.offset;
+  });
+
+  // If the last packet still expects more fragments, can't reassemble yet.
+  if (list[list.length - 1].ip.flags.mf) {
+    return null;
+  }
+
+  // Ok, last packet is here, do we have the rest?  If there is a gap in
+  // the sequence of bytes, then we can't reassemble yet.
+  var totalLength = 0;
+  var bufferList = [];
+  var expectedOffset = 0;
+  for (var i = 0, n = list.length; i < n; ++i) {
+    var packet = list[i];
+
+    if (packet.ip.offset !== expectedOffset) {
+      return null;
+    }
+
+    totalLength += packet.ip.dataLength;
+    bufferList.push(packet.data.slice(~~packet.offset));
+    expectedOffset += (packet.ip.dataLength / 8);
+  }
+
+  msg.data = Buffer.concat(bufferList, totalLength);
+  msg.ip.dataLength = msg.data.length;
+  msg.ip.totalLength = msg.ip.length + msg.ip.dataLength;
+  msg.ip.flags.mf = false;
+  msg.ip.offset = 0;
+
+  delete this._fragments[key];
+
+  return msg;
+};
