@@ -87,7 +87,7 @@ module.exports.writeIgnore = function(test) {
   };
 
   var ipstream = new IpStream();
-  ipstream.on('ignored', function(msg) {
+  ipstream.on('ignored', function(error, msg) {
     test.deepEqual(value, msg);
   });
   ipstream.on('readable', function() {

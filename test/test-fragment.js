@@ -62,7 +62,7 @@ module.exports.timeout = function(test) {
 
   var ipstream = new IpStream({fragmentTimeout: 100});
 
-  ipstream.on('ignored', function(msg) {
+  ipstream.on('ignored', function(error, msg) {
     if (!msg.ip.offset) {
       test.deepEqual(msgs[0], msg);
     } else {
@@ -117,7 +117,7 @@ module.exports.drop = function(test) {
   var ipstream = new IpStream({fragments: 'drop'});
 
   var i = 0;
-  ipstream.on('ignored', function(msg) {
+  ipstream.on('ignored', function(error, msg) {
     test.deepEqual(msgs[i], msg);
     i += 1;
   });

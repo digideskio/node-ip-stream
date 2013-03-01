@@ -1,10 +1,12 @@
 # ip-stream
 
-Object stream transform that parses IP headers.
+IP header serialization object stream.
 
 [![Build Status](https://travis-ci.org/wanderview/node-ip-stream.png)](https://travis-ci.org/wanderview/node-ip-stream)
 
 ## Example
+
+### Reading
 
 ```javascript
 var IpStream = require('ip-stream');
@@ -30,8 +32,8 @@ ipstream.on('readable', function() {
 });
 
 // Packets that cannot be parsed as IP are emitted with 'ignored' event
-ipstream.on('ignored', function(msg) {
-  console.log('Ignored message [' + msg + ']');
+ipstream.on('ignored', function(error, msg) {
+  console.log('Ignored message [' + msg + '] due to [' + error + ']');
 });
 
 ipstream.read(0);
@@ -43,5 +45,36 @@ var ipsream4 = new IpStream({fragments: 'pass'});       // passthrough frags
 
 // When reassembling, unmatched fragments are timed-out after 30 seconds by
 // default, but you can configure that:
-var ipsream5 = new IpStream({fragmentTimeout: 5000});
+var ipstream5 = new IpStream({fragmentTimeout: 5000});
+```
+
+### Writing
+
+```javascript
+  var IpStream = require('ip-stream');
+  var EtherStream = require('ether-stream');
+  var IpHeader = require('ip-header');
+  var EtherFrame = require('ether-frame');
+
+  var estream = new EtherStream();
+  var ipstream = new IpStream();
+
+  estream.pipe(ipstream);
+
+  // define the content to write out to the buffer
+  var in = {
+    ether: new EtherFrame({ dst: '01:23:45:54:32:10' }),
+    ip: new IpHeader({ dst: '1.1.1.1', dataLength: 500 }),
+    data: new Buffer(8*1024)    // adequate storage for header
+  };
+
+  // NOTE: packet payload is not in.data, that must be appended later
+
+  estream.write(in);
+  var out = ipstream.read();
+
+  // header values have been written to the buffer
+  out.offset === (in.ether.length * in.ip.length);
+  test.deepEqual(in.ether, new EtherFrame(out.data, 0));
+  test.deepEqual(in.ip, new IpHeader(out.data, in.ether.length));
 ```

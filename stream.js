@@ -26,13 +26,10 @@
 module.exports = IpStream;
 
 var IpHeader = require('ip-header');
-var Transform = require('stream').Transform;
-if (!Transform) {
-  Transform = require('readable-stream/transform');
-}
+var ObjectTransform = require('object-transform');
 var util = require('util');
 
-util.inherits(IpStream, Transform);
+util.inherits(IpStream, ObjectTransform);
 
 function IpStream(opts) {
   var self = (this instanceof IpStream)
@@ -41,13 +38,14 @@ function IpStream(opts) {
 
   opts = opts || {};
 
-  if (opts.objectMode === false) {
-    throw new Error('IpStream requires objectMode; do not set ' +
-                    'option {objectMode: false}');
-  }
-  opts.objectMode = true;
+  opts.meta = 'ip';
 
-  Transform.call(self, opts);
+  ObjectTransform.call(self, opts);
+
+  if (self.ip && typeof self.ip.toBuffer !== 'function') {
+    throw new Error('IpStream optional ip value must be null or provide a ' +
+                    'toBuffer() function.');
+  }
 
   self._fragmentsMode = opts.fragments || 'reassemble';
   if (self._fragmentsMode !== 'reassemble' &&
@@ -65,50 +63,44 @@ function IpStream(opts) {
   return self;
 }
 
-IpStream.prototype._transform = function(origMsg, output, callback) {
-  var msg = origMsg;
-  if (msg instanceof Buffer) {
-    msg = { data: msg, offset: 0 };
-  }
-  msg.offset = ~~msg.offset;
-
+IpStream.prototype._reduce = function(msg, output, callback) {
   var type = (msg.ether && msg.ether.type) ? msg.ether.type : 'ip';
   if (type !== 'ip') {
-    this.emit('ignored', origMsg);
+    var error = new Error('Message type is [' + type + ']; must be ip');
+    this.emit('ignored', error, msg);
     callback();
     return;
   }
 
-  try {
-    msg.ip = new IpHeader(msg.data, msg.offset);
-    msg.offset += msg.ip.length;
+  msg.ip = new IpHeader(msg.data, msg.offset);
+  msg.offset += msg.ip.length;
 
-    if (msg.ip.flags.mf || msg.ip.offset) {
-      if (this._fragmentsMode === 'drop') {
-        this.emit('ignored', origMsg);
+  if (msg.ip.flags.mf || msg.ip.offset) {
+    if (this._fragmentsMode === 'drop') {
+      var error = new Error('Fragmented packet.');
+      this.emit('ignored', error, msg);
+      callback();
+      return;
+    }
+
+    if (this._fragmentsMode === 'reassemble') {
+      msg = this._handleFragment(msg);
+      if (!msg) {
         callback();
         return;
       }
-
-      if (this._fragmentsMode === 'reassemble') {
-        msg = this._handleFragment(msg);
-        if (!msg) {
-          callback();
-          return;
-        }
-      }
-
-      // do nothing in case of 'pass' mode
     }
-
-    output(msg);
-
-  } catch (error) {
-    this.emit('ignored', origMsg);
   }
 
-  callback();
+  return msg;
 }
+
+IpStream.prototype._expand = function(ip, msg, output, callback) {
+  // TODO: fragment jumbo packets into multiple messages
+  ip.toBuffer(msg.data, msg.offset);
+  msg.offset += ip.length;
+  return msg;
+};
 
 IpStream.prototype._handleFragment = function(msg) {
   var key = msg.ip.src + '-' + msg.ip.dst + '-' + msg.ip.id;
@@ -170,7 +162,8 @@ IpStream.prototype._doTimeout = function(key) {
 
   if (list) {
     for (var i = 0, n = list.length; i < n; ++i) {
-      this.emit('ignored', list[i]);
+      var error = new Error('Fragment timed out.');
+      this.emit('ignored', error, list[i]);
     }
   }
 };

@@ -1,19 +1,22 @@
 {
   "name": "ip-stream",
-  "description": "Object stream transform that parses IP headers.",
+  "description": "IP header serialization object stream.",
   "keywords": [
     "IP",
     "header",
     "binary",
     "parse",
-    "stream"
+    "stream",
+    "object",
+    "objectMode",
+    "composable-object-stream"
   ],
   "version": "0.2.1",
   "author": "Ben Kelly <ben@wanderview.com>",
   "license": "BSD",
   "dependencies": {
     "ip-header": "~0.1.0",
-    "readable-stream": "~0.3.0"
+    "object-transform": "~0.2.0"
   },
   "devDependencies": {
     "nodeunit": "~0.7.4"
