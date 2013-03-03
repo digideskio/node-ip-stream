@@ -27,7 +27,7 @@ var IpStream = require('../stream');
 
 var IpHeader = require('ip-header');
 
-module.exports.writeBuffer = function(test) {
+module.exports.buffer = function(test) {
   test.expect(2);
 
   var iph = new IpHeader({
@@ -52,7 +52,7 @@ module.exports.writeBuffer = function(test) {
   ipstream.end();
 };
 
-module.exports.writeObject = function(test) {
+module.exports.object = function(test) {
   test.expect(2);
 
   var iph = new IpHeader({
@@ -77,7 +77,7 @@ module.exports.writeObject = function(test) {
   ipstream.end();
 };
 
-module.exports.writeIgnore = function(test) {
+module.exports.ignore = function(test) {
   test.expect(1);
 
   var value = {

@@ -51,30 +51,30 @@ var ipstream5 = new IpStream({fragmentTimeout: 5000});
 ### Writing
 
 ```javascript
-  var IpStream = require('ip-stream');
-  var EtherStream = require('ether-stream');
-  var IpHeader = require('ip-header');
-  var EtherFrame = require('ether-frame');
+var IpStream = require('ip-stream');
+var EtherStream = require('ether-stream');
+var IpHeader = require('ip-header');
+var EtherFrame = require('ether-frame');
 
-  var estream = new EtherStream();
-  var ipstream = new IpStream();
+var estream = new EtherStream();
+var ipstream = new IpStream();
 
-  estream.pipe(ipstream);
+estream.pipe(ipstream);
 
-  // define the content to write out to the buffer
-  var in = {
-    ether: new EtherFrame({ dst: '01:23:45:54:32:10' }),
-    ip: new IpHeader({ dst: '1.1.1.1', dataLength: 500 }),
-    data: new Buffer(8*1024)    // adequate storage for header
-  };
+// define the content to write out to the buffer
+var input = {
+  ether: new EtherFrame({ dst: '01:23:45:54:32:10' }),
+  ip: new IpHeader({ dst: '1.1.1.1', dataLength: 500 }),
+  data: new Buffer(8*1024)    // adequate storage for header
+};
 
-  // NOTE: packet payload is not in.data, that must be appended later
+// NOTE: packet payload is not input.data, that must be appended later
 
-  estream.write(in);
-  var out = ipstream.read();
+estream.write(input);
+var output = ipstream.read();
 
-  // header values have been written to the buffer
-  out.offset === (in.ether.length * in.ip.length);
-  test.deepEqual(in.ether, new EtherFrame(out.data, 0));
-  test.deepEqual(in.ip, new IpHeader(out.data, in.ether.length));
+// header values have been written to the buffer
+out.offset === (input.ether.length * input.ip.length);
+test.deepEqual(input.ether, new EtherFrame(out.data, 0));
+test.deepEqual(input.ip, new IpHeader(out.data, input.ether.length));
 ```
