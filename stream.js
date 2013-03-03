@@ -97,7 +97,10 @@ IpStream.prototype._reduce = function(msg, output, callback) {
 
 IpStream.prototype._expand = function(ip, msg, output, callback) {
   // TODO: fragment jumbo packets into multiple messages
+  // TODO: provide way to override dataLength on msg, but get IP addresses
+  //       from default IP object?
   ip.toBuffer(msg.data, msg.offset);
+  msg.ip = ip;
   msg.offset += ip.length;
   return msg;
 };
